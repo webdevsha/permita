@@ -5,6 +5,7 @@ import { createClient } from '@/utils/supabase/client'
 import { User, Session } from '@supabase/supabase-js'
 import { useRouter } from 'next/navigation'
 import { Profile } from '@/types/supabase-types'
+import { useSWRConfig } from 'swr'
 
 type AuthContextType = {
   user: User | null
@@ -34,6 +35,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true)
   const router = useRouter()
   const supabase = createClient()
+  const { mutate } = useSWRConfig()
 
   useEffect(() => {
     const initAuth = async () => {
@@ -94,6 +96,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = async () => {
     await supabase.auth.signOut()
+    // Clear all SWR cache on logout to ensure data privacy and prevent mixing user states
+    await mutate(() => true, undefined, { revalidate: false })
     router.push('/')
   }
 
