@@ -2,13 +2,14 @@ export type Profile = {
   id: string
   email: string | null
   full_name: string | null
-  role: 'tenant' | 'staff' | 'admin'
+  role: 'tenant' | 'staff' | 'admin' | 'organizer'
   created_at: string
 }
 
 export type Location = {
   id: number
   name: string
+  description: string | null // New field for 'Lokasi' (Venue)
   type: 'daily' | 'monthly'
   rate_khemah: number
   rate_cbs: number
@@ -17,6 +18,7 @@ export type Location = {
   operating_days: string | null
   total_lots: number
   created_at: string
+  organizer_id?: string | null
 }
 
 export type Tenant = {
