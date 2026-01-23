@@ -9,7 +9,11 @@ import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+<<<<<<< HEAD
 import { CreditCard, Loader2, Upload, FileText, CheckCircle2, AlertCircle, Plus, Store, ExternalLink, Search } from "lucide-react"
+=======
+import { CreditCard, Loader2, Upload, FileText, CheckCircle2, AlertCircle, Plus, Store } from "lucide-react"
+>>>>>>> parent of 6608e2f (Add receipt URL to payment history table)
 import { toast } from "sonner"
 import { createClient } from "@/utils/supabase/client"
 import { useAuth } from "@/components/providers/auth-provider"
@@ -157,8 +161,7 @@ export function RentalModule() {
             payment_date: tx.date,
             remarks: tx.description,
             amount: tx.amount,
-            status: tx.status,
-            receipt_url: tx.receipt_url
+            status: tx.status
         }))
         setHistory(mappedHistory)
     }
@@ -593,18 +596,13 @@ export function RentalModule() {
         </TabsContent>
 
         <TabsContent value="history" className="mt-6">
+           {/* Existing history table code remains same */}
            <Card className="bg-white border-border/50 shadow-sm rounded-[2rem] overflow-hidden">
              <CardHeader><CardTitle className="text-foreground font-serif">Rekod Pembayaran</CardTitle></CardHeader>
              <CardContent className="p-0">
                <Table>
                  <TableHeader className="bg-secondary/30">
-                    <TableRow>
-                      <TableHead className="pl-6">Tarikh</TableHead>
-                      <TableHead>Keterangan</TableHead>
-                      <TableHead className="text-right">Jumlah</TableHead>
-                      <TableHead className="text-center">Status</TableHead>
-                      <TableHead className="text-center">Resit</TableHead>
-                    </TableRow>
+                    <TableRow><TableHead className="pl-6">Tarikh</TableHead><TableHead>Keterangan</TableHead><TableHead className="text-right">Jumlah</TableHead><TableHead className="text-center">Status</TableHead></TableRow>
                  </TableHeader>
                  <TableBody>
                     {history.map((pay) => (
@@ -626,18 +624,9 @@ export function RentalModule() {
                               {pay.status === 'approved' ? 'Berjaya' : 'Menunggu'}
                             </Badge>
                           </TableCell>
-                          <TableCell className="text-center">
-                             {pay.receipt_url ? (
-                               <a href={pay.receipt_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center p-2 rounded-lg bg-secondary hover:bg-secondary/80 text-primary">
-                                  <ExternalLink size={14} />
-                               </a>
-                             ) : (
-                               <span className="text-xs text-muted-foreground">-</span>
-                             )}
-                          </TableCell>
                        </TableRow>
                     ))}
-                    {history.length === 0 && <TableRow><TableCell colSpan={5} className="text-center py-6">Tiada rekod.</TableCell></TableRow>}
+                    {history.length === 0 && <TableRow><TableCell colSpan={4} className="text-center py-6">Tiada rekod.</TableCell></TableRow>}
                  </TableBody>
                </Table>
              </CardContent>
