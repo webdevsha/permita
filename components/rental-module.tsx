@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { CreditCard, Loader2, Upload, FileText, CheckCircle2, AlertCircle, Plus, Store, ExternalLink } from "lucide-react"
+import { CreditCard, Loader2, Upload, FileText, CheckCircle2, AlertCircle, Plus, Store, ExternalLink, Search } from "lucide-react"
 import { toast } from "sonner"
 import { createClient } from "@/utils/supabase/client"
 import { useAuth } from "@/components/providers/auth-provider"
@@ -36,7 +36,6 @@ export function RentalModule() {
   const [loading, setLoading] = useState(true)
   const [tenant, setTenant] = useState<Tenant | null>(null)
   const [myLocations, setMyLocations] = useState<any[]>([])
-  const [availableLocations, setAvailableLocations] = useState<any[]>([])
   const [history, setHistory] = useState<any[]>([])
   
   // Tab State Management
@@ -54,6 +53,12 @@ export function RentalModule() {
   const [applyLocationId, setApplyLocationId] = useState("")
   const [applyRateType, setApplyRateType] = useState("monthly")
   const [isApplying, setIsApplying] = useState(false)
+  
+  // Organizer Filter State
+  const [organizerCode, setOrganizerCode] = useState("")
+  const [availableLocations, setAvailableLocations] = useState<any[]>([])
+  const [isSearchingOrg, setIsSearchingOrg] = useState(false)
+  const [foundOrganizer, setFoundOrganizer] = useState<string | null>(null)
 
   // Sync tab with URL param
   useEffect(() => {
@@ -107,7 +112,8 @@ export function RentalModule() {
                return {
                  ...item,
                  display_price: price,
-                 location_name: item.locations.name
+                 location_name: item.locations.name,
+                 location_desc: item.locations.description
                }
              })
              setMyLocations(processedLocations)
@@ -118,13 +124,6 @@ export function RentalModule() {
                setPaymentAmount(activeLoc.display_price.toString())
              }
           }
-
-          // 3. Get All System Locations (for new application)
-          const { data: allLocs } = await supabase
-            .from('locations')
-            .select('*')
-            .order('name')
-          setAvailableLocations(allLocs || [])
 
           // 4. Get History
           await fetchHistory(currentTenant.id)
@@ -146,8 +145,6 @@ export function RentalModule() {
   }, [user, supabase, searchParams])
 
   const fetchHistory = async (tenantId: number) => {
-    // UPDATED: Fetch from 'transactions' table to include all records (including seeded data)
-    // tenant_payments is only for specific payment flow, transactions is the master ledger
     const { data: txData } = await supabase
       .from('transactions')
       .select('*')
@@ -155,7 +152,6 @@ export function RentalModule() {
       .order('date', { ascending: false })
       
     if (txData) {
-        // Map transaction data to the history structure used in UI
         const mappedHistory = txData.map(tx => ({
             id: tx.id,
             payment_date: tx.date,
@@ -165,6 +161,54 @@ export function RentalModule() {
             receipt_url: tx.receipt_url
         }))
         setHistory(mappedHistory)
+    }
+  }
+
+  const handleSearchOrganizer = async () => {
+    if (!organizerCode) {
+       toast.error("Sila masukkan Kod Penganjur")
+       return
+    }
+    
+    setIsSearchingOrg(true)
+    setAvailableLocations([])
+    setFoundOrganizer(null)
+
+    try {
+      // 1. Find Organizer in new Table
+      const { data: organizer, error } = await supabase
+        .from('organizers')
+        .select('id, name')
+        .eq('organizer_code', organizerCode)
+        .maybeSingle()
+
+      if (error) throw error
+
+      if (organizer) {
+         setFoundOrganizer(organizer.name)
+         
+         // 2. Fetch Locations for this Organizer
+         const { data: locs } = await supabase
+            .from('locations')
+            .select('*')
+            .eq('organizer_id', organizer.id)
+            .order('name')
+         
+         if (locs && locs.length > 0) {
+            setAvailableLocations(locs)
+            toast.success(`${locs.length} lokasi dijumpai!`)
+         } else {
+            toast.info("Penganjur ini tiada lokasi aktif.")
+         }
+      } else {
+         toast.error("Kod penganjur tidak sah.")
+      }
+      
+    } catch (e: any) {
+      console.error(e)
+      toast.error("Ralat carian: " + e.message)
+    } finally {
+      setIsSearchingOrg(false)
     }
   }
 
@@ -243,8 +287,8 @@ export function RentalModule() {
         tenant_id: tenant.id,
         location_id: parseInt(applyLocationId),
         rate_type: applyRateType,
-        status: 'pending', // Require Admin Activation
-        stall_number: null // Unfillable by tenant
+        status: 'pending',
+        stall_number: null 
       })
 
       if (error) throw error
@@ -361,41 +405,62 @@ export function RentalModule() {
                 <DialogContent className="bg-white rounded-3xl">
                    <DialogHeader>
                       <DialogTitle>Permohonan Sewa Tapak</DialogTitle>
-                      <DialogDescription>Pilih lokasi pasar untuk disewa. No. Petak akan ditentukan oleh Admin.</DialogDescription>
+                      <DialogDescription>Cari lokasi menggunakan kod penganjur</DialogDescription>
                    </DialogHeader>
                    <div className="space-y-4 py-4">
-                      <div className="space-y-2">
-                         <Label>Lokasi Pasar</Label>
-                         <Select value={applyLocationId} onValueChange={setApplyLocationId}>
-                            <SelectTrigger className="rounded-xl h-11">
-                               <SelectValue placeholder="Pilih lokasi..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                               {availableLocations.map(loc => (
-                                  <SelectItem key={loc.id} value={loc.id.toString()}>
-                                     {loc.name} ({loc.operating_days})
-                                  </SelectItem>
-                               ))}
-                            </SelectContent>
-                         </Select>
+                      
+                      <div className="space-y-2 p-4 bg-secondary/20 rounded-xl border border-border/50">
+                         <Label>Kod Penganjur (e.g. Organizer-1)</Label>
+                         <div className="flex gap-2">
+                            <Input 
+                               value={organizerCode} 
+                               onChange={(e) => setOrganizerCode(e.target.value)}
+                               placeholder="Masukkan Kod" 
+                               className="bg-white"
+                            />
+                            <Button size="icon" onClick={handleSearchOrganizer} disabled={isSearchingOrg}>
+                               {isSearchingOrg ? <Loader2 className="animate-spin" /> : <Search className="w-4 h-4" />}
+                            </Button>
+                         </div>
+                         {foundOrganizer && (
+                           <p className="text-xs text-brand-green font-bold flex items-center gap-1">
+                             <CheckCircle2 className="w-3 h-3" /> Penganjur: {foundOrganizer}
+                           </p>
+                         )}
                       </div>
-                      <div className="space-y-2">
-                         <Label>Jenis Sewaan</Label>
-                         <Select value={applyRateType} onValueChange={setApplyRateType}>
-                            <SelectTrigger className="rounded-xl h-11">
-                               <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                               <SelectItem value="monthly">Bulanan</SelectItem>
-                               <SelectItem value="khemah">Harian (Khemah)</SelectItem>
-                               <SelectItem value="cbs">Harian (CBS/Lori)</SelectItem>
-                            </SelectContent>
-                         </Select>
-                      </div>
-                      <div className="p-3 bg-secondary/20 rounded-xl text-xs text-muted-foreground flex gap-2">
-                         <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                         <p>Status permohonan akan menjadi "Pending" sehingga diluluskan oleh Admin. No. Petak akan diberikan selepas kelulusan.</p>
-                      </div>
+
+                      {availableLocations.length > 0 && (
+                        <div className="space-y-4 animate-in fade-in slide-in-from-top-2">
+                          <div className="space-y-2">
+                             <Label>Pilih Lokasi</Label>
+                             <Select value={applyLocationId} onValueChange={setApplyLocationId}>
+                                <SelectTrigger className="rounded-xl h-11">
+                                   <SelectValue placeholder="Pilih lokasi..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                   {availableLocations.map(loc => (
+                                      <SelectItem key={loc.id} value={loc.id.toString()}>
+                                         {loc.name} {loc.description ? `(${loc.description})` : ''}
+                                      </SelectItem>
+                                   ))}
+                                </SelectContent>
+                             </Select>
+                          </div>
+                          <div className="space-y-2">
+                             <Label>Jenis Sewaan</Label>
+                             <Select value={applyRateType} onValueChange={setApplyRateType}>
+                                <SelectTrigger className="rounded-xl h-11">
+                                   <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                   <SelectItem value="monthly">Bulanan</SelectItem>
+                                   <SelectItem value="khemah">Mingguan (Khemah)</SelectItem>
+                                   <SelectItem value="cbs">Mingguan (CBS/Lori)</SelectItem>
+                                </SelectContent>
+                             </Select>
+                          </div>
+                        </div>
+                      )}
                    </div>
                    <DialogFooter>
                       <Button onClick={handleApplyRental} disabled={isApplying || !applyLocationId} className="w-full rounded-xl">
@@ -411,7 +476,10 @@ export function RentalModule() {
               <Card key={rental.id} className="bg-white border-border/50 shadow-sm rounded-3xl overflow-hidden hover:shadow-md transition-all">
                 <CardHeader className="pb-4 bg-secondary/30 border-b border-border/30">
                   <div className="flex justify-between items-start">
-                    <CardTitle className="text-foreground font-serif text-xl">{rental.location_name}</CardTitle>
+                    <div>
+                      <CardTitle className="text-foreground font-serif text-xl">{rental.location_name}</CardTitle>
+                      {rental.location_desc && <p className="text-xs text-muted-foreground mt-1">{rental.location_desc}</p>}
+                    </div>
                     <Badge className={cn("capitalize border-none", 
                       rental.status === 'active' ? "bg-brand-green/10 text-brand-green" : 
                       rental.status === 'pending' ? "bg-amber-100 text-amber-800" : "bg-gray-100 text-gray-600"
@@ -430,7 +498,7 @@ export function RentalModule() {
                 <CardContent className="pt-6">
                   <div className="flex justify-between items-center text-sm mb-2">
                     <span className="text-muted-foreground font-medium">Jenis Sewa:</span>
-                    <Badge variant="outline" className="capitalize">{rental.rate_type}</Badge>
+                    <Badge variant="outline" className="capitalize">{rental.rate_type === 'daily' ? 'Mingguan' : rental.rate_type}</Badge>
                   </div>
                   <div className="flex justify-between items-center text-sm">
                     <span className="text-muted-foreground font-medium">Kadar Semasa:</span>
