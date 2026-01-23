@@ -21,19 +21,49 @@ import { createClient } from "@/utils/supabase/client"
 import Image from "next/image"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
+import { useAuth } from "@/components/providers/auth-provider"
 
-// Fetcher remains the same
-const fetchTenants = async () => {
+// Fetcher modified to accept role args
+const fetchTenants = async ([, role, userId]: [string, string, string]) => {
   const supabase = createClient()
-  const { data: tenants, error } = await supabase.from('tenants').select('*').order('created_at', { ascending: false })
-  if (error) throw error
-  if (!tenants) return []
+  
+  let tenants = []
 
+  // 1. If Organizer, find relevant tenants via locations
+  if (role === 'organizer') {
+    // Get Organizer's locations
+    const { data: myLocs } = await supabase.from('locations').select('id').eq('organizer_id', userId)
+    const locIds = myLocs?.map(l => l.id) || []
+    
+    if (locIds.length > 0) {
+      // Find TenantLocations in these locations
+      const { data: tLocs } = await supabase
+        .from('tenant_locations')
+        .select('tenant_id')
+        .in('location_id', locIds)
+      
+      const tenantIds = Array.from(new Set(tLocs?.map(t => t.tenant_id))) || []
+      
+      if (tenantIds.length > 0) {
+        const { data: tList } = await supabase
+          .from('tenants')
+          .select('*')
+          .in('id', tenantIds)
+          .order('created_at', { ascending: false })
+        tenants = tList || []
+      }
+    }
+  } else {
+    // Admin/Staff fetch all
+    const { data: tList } = await supabase.from('tenants').select('*').order('created_at', { ascending: false })
+    tenants = tList || []
+  }
+
+  // Enrich Data
   const enrichedTenants = await Promise.all(tenants.map(async (tenant) => {
     const { data: locs } = await supabase.from('tenant_locations').select('*, locations(*)').eq('tenant_id', tenant.id)
     const { data: payments } = await supabase.from('tenant_payments').select('*').eq('tenant_id', tenant.id).eq('status', 'approved').order('payment_date', { ascending: false }).limit(1)
     
-    // ... logic same as before ...
     const lastPayment = payments?.[0]
     let paymentStatus = 'active'
     let overdueLabel = ''
@@ -41,7 +71,6 @@ const fetchTenants = async () => {
       ? new Date(lastPayment.payment_date).toLocaleDateString('ms-MY', { day: 'numeric', month: 'short', year: 'numeric' })
       : "Tiada Rekod"
       
-    // Simplified status logic for brevity in this update
     if (!lastPayment) paymentStatus = 'new'
     else paymentStatus = 'paid'
 
@@ -58,7 +87,8 @@ const fetchTenants = async () => {
 }
 
 export function TenantList() {
-  const { data: tenants, isLoading, mutate } = useSWR('enriched_tenants_v9', fetchTenants)
+  const { user, role } = useAuth()
+  const { data: tenants, isLoading, mutate } = useSWR(user ? ['enriched_tenants_v10', role, user.id] : null, fetchTenants)
   const [selectedTenant, setSelectedTenant] = useState<any>(null)
   
   // Dialog Data States
@@ -92,7 +122,7 @@ export function TenantList() {
     setLoadingDetails(false)
   }
 
-  // Admin: Toggle Tenant Account Status
+  // Admin/Organizer: Toggle Tenant Account Status
   const handleTenantStatusChange = async (tenantId: number, newStatus: string) => {
     setIsUpdating(true)
     try {
@@ -107,7 +137,6 @@ export function TenantList() {
     }
   }
 
-  // Admin: Toggle Individual Rental Location Status
   const handleRentalStatusChange = async (rentalId: number, currentStatus: string) => {
     const newStatus = currentStatus === 'active' ? 'inactive' : 'active'
     try {
@@ -122,7 +151,6 @@ export function TenantList() {
     }
   }
 
-  // Admin: Save Stall Number
   const handleSaveStall = async (rentalId: number, stallNumber: string) => {
     try {
        const { error } = await supabase.from('tenant_locations').update({ stall_number: stallNumber }).eq('id', rentalId)
@@ -146,9 +174,11 @@ export function TenantList() {
         <div className="flex justify-between items-center">
           <div>
              <CardTitle className="font-serif text-2xl text-foreground">Pengurusan Peniaga & Sewa</CardTitle>
-             <CardDescription>Senarai peniaga aktif dan status pembayaran sewa terkini</CardDescription>
+             <CardDescription>
+                {role === 'organizer' ? 'Senarai peniaga di lokasi anda' : 'Senarai semua peniaga berdaftar'}
+             </CardDescription>
           </div>
-          <Button className="bg-primary text-white">Tambah Peniaga</Button>
+          {role === 'admin' && <Button className="bg-primary text-white">Tambah Peniaga</Button>}
         </div>
       </CardHeader>
       <CardContent>
@@ -275,14 +305,12 @@ export function TenantList() {
                                                    </TableCell>
                                                    <TableCell className="capitalize text-xs">{rental.rate_type}</TableCell>
                                                    <TableCell>
-                                                      <div className="flex items-center gap-1">
-                                                         <Input 
+                                                      <Input 
                                                             className="h-8 text-xs w-20 bg-white" 
                                                             defaultValue={rental.stall_number || ""}
                                                             onBlur={(e) => handleSaveStall(rental.id, e.target.value)}
                                                             placeholder="A-01"
                                                          />
-                                                      </div>
                                                    </TableCell>
                                                    <TableCell className="text-center">
                                                       <div className="flex justify-center items-center gap-2">
@@ -342,6 +370,13 @@ export function TenantList() {
                   </TableCell>
                 </TableRow>
               ))}
+              {tenants?.length === 0 && (
+                <TableRow>
+                   <TableCell colSpan={5} className="text-center py-12 text-muted-foreground">
+                      Tiada peniaga dijumpai.
+                   </TableCell>
+                </TableRow>
+              )}
             </TableBody>
           </Table>
         </div>
