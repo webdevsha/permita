@@ -1,7 +1,7 @@
 "use client"
 
 import { cn } from "@/lib/utils"
-import { LayoutDashboard, Users, Receipt, Home, Settings, LogOut, Menu, MapPin, Bell, Loader2 } from "lucide-react"
+import { LayoutDashboard, Users, Receipt, Home, Settings, LogOut, Menu, MapPin, Bell, Loader2, Briefcase, FileText } from "lucide-react"
 import { useState } from "react"
 import { Button } from "./ui/button"
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from "./ui/sheet"
@@ -30,6 +30,7 @@ export function Navbar({ activeModule, setActiveModule }: any) {
     userRole === "admin"
       ? [
           { id: "overview", label: "Utama", icon: LayoutDashboard },
+          { id: "organizers", label: "Penganjur", icon: Briefcase },
           { id: "tenants", label: "Peniaga & Sewa", icon: Users },
           { id: "accounting", label: "Akaun", icon: Receipt },
           { id: "locations", label: "Lokasi", icon: MapPin },
@@ -38,8 +39,17 @@ export function Navbar({ activeModule, setActiveModule }: any) {
       : userRole === "staff"
         ? [
             { id: "overview", label: "Utama", icon: LayoutDashboard },
+            { id: "organizers", label: "Penganjur", icon: Briefcase },
             { id: "tenants", label: "Pendaftaran", icon: Users },
             { id: "accounting", label: "Kewangan", icon: Receipt },
+            { id: "settings", label: "Tetapan", icon: Settings },
+          ]
+      : userRole === "organizer"
+        ? [
+            { id: "overview", label: "Utama", icon: LayoutDashboard },
+            { id: "locations", label: "Lokasi Saya", icon: MapPin },
+            { id: "tenants", label: "Penyewa", icon: Users },
+            { id: "permits", label: "Permit", icon: FileText },
             { id: "settings", label: "Tetapan", icon: Settings },
           ]
         : [
