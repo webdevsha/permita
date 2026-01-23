@@ -109,6 +109,12 @@ export function SettingsModule() {
           ssm: data.ssm_file_url || "",
           ic: data.ic_file_url || ""
         })
+      } else {
+        // If no tenant record, try fetching from profile for at least the name
+        const { data: profile } = await supabase.from('profiles').select('full_name').eq('id', user.id).single()
+        if (profile) {
+           setFormData(prev => ({ ...prev, fullName: profile.full_name || "" }))
+        }
       }
       setLoading(false)
     }
@@ -210,16 +216,17 @@ export function SettingsModule() {
       if (files.ssm) newUrls.ssm = await handleFileUpload(files.ssm, 'ssm')
       if (files.ic) newUrls.ic = await handleFileUpload(files.ic, 'ic')
       
-      // Update Profiles Table (Primary source for Full Name)
-      // We do this separately to ensure at least the basic profile is updated
-      if (formData.fullName) {
-        await supabase
+      // 1. Always attempt to update Profiles Table (Usually allowed for own profile)
+      const { error: profileError } = await supabase
           .from('profiles')
           .update({ full_name: formData.fullName })
           .eq('id', user.id)
+
+      if (profileError) {
+        console.warn("Profile update warning:", profileError)
       }
 
-      // Prepare Payload for Tenants Table
+      // 2. Prepare Payload for Tenants Table
       const payload = {
         full_name: formData.fullName,
         business_name: formData.businessName || null,
@@ -232,48 +239,51 @@ export function SettingsModule() {
         ic_file_url: newUrls.ic || null
       }
       
-      let error;
-
       if (tenantId) {
-        // Update existing record
+        // UPDATE existing tenant record
         const { error: updateError } = await supabase
           .from('tenants')
           .update(payload)
           .eq('id', tenantId)
-        error = updateError
+        
+        if (updateError) throw updateError
+        toast.success("Profil perniagaan berjaya dikemaskini")
       } else {
-        // Create new record
-        // We do NOT set 'status' here to avoid RLS violation (defaults to pending usually)
+        // INSERT new tenant record (Handle Permission Error Gracefully)
         const { data: newTenant, error: insertError } = await supabase
             .from('tenants')
             .insert({
                 ...payload,
                 profile_id: user.id,
-                email: user.email
+                email: user.email,
+                // Status omitted to use database default or trigger logic
             })
             .select('id')
-            .single()
+            .maybeSingle()
             
-        if (newTenant) {
-            setTenantId(newTenant.id)
+        if (insertError) {
+          // Check for RLS Policy Violation
+          if (insertError.code === '42501') {
+            console.warn("Tenant creation blocked by RLS:", insertError)
+            
+            if (!profileError) {
+               // If basic profile updated but tenant failed (e.g. staff/organizer account restrictions)
+               toast.warning("Nama dikemaskini. Maklumat perniagaan gagal disimpan kerana sekatan akaun.")
+            } else {
+               throw new Error("Tiada kebenaran untuk mengemaskini profil.")
+            }
+          } else {
+            throw insertError
+          }
+        } else {
+           if (newTenant) setTenantId(newTenant.id)
+           toast.success("Profil perniagaan berjaya dicipta")
         }
-        error = insertError
-      }
-        
-      if (error) {
-        // If we hit RLS on insert, it might be because we can't create tenants manually.
-        // But we already updated the profile above, so we can consider it a partial success if it was just full_name
-        console.error("Tenant update error:", error)
-        if (error.code === '42501') {
-           throw new Error("Anda tiada kebenaran untuk mencipta profil perniagaan. Sila hubungi Admin.")
-        }
-        throw error
       }
       
       setUrls(newUrls)
       setFiles({}) // Reset file inputs
       setIsEditing(false) // Switch back to read-only
-      toast.success(tenantId ? "Profil berjaya dikemaskini" : "Profil berjaya dicipta")
       
     } catch (err: any) {
       console.error(err)
