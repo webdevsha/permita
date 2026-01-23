@@ -10,7 +10,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 <<<<<<< HEAD
+<<<<<<< HEAD
 import { CreditCard, Loader2, Upload, FileText, CheckCircle2, AlertCircle, Plus, Store, ExternalLink, Search } from "lucide-react"
+=======
+import { CreditCard, Loader2, Upload, FileText, CheckCircle2, AlertCircle, Plus, Store } from "lucide-react"
+>>>>>>> parent of 6608e2f (Add receipt URL to payment history table)
 =======
 import { CreditCard, Loader2, Upload, FileText, CheckCircle2, AlertCircle, Plus, Store } from "lucide-react"
 >>>>>>> parent of 6608e2f (Add receipt URL to payment history table)
