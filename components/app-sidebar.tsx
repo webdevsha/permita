@@ -13,7 +13,9 @@ import {
   Bell,
   PanelLeftClose,
   PanelLeft,
-  ChevronRight
+  ChevronRight,
+  Briefcase,
+  FileText
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -37,6 +39,7 @@ export function AppSidebar({ activeModule, setActiveModule, isCollapsed, setIsCo
     userRole === "admin"
       ? [
           { id: "overview", label: "Utama", icon: LayoutDashboard },
+          { id: "organizers", label: "Penganjur", icon: Briefcase }, // New
           { id: "tenants", label: "Peniaga & Sewa", icon: Users },
           { id: "accounting", label: "Akaun", icon: Receipt },
           { id: "locations", label: "Lokasi", icon: MapPin },
@@ -45,8 +48,17 @@ export function AppSidebar({ activeModule, setActiveModule, isCollapsed, setIsCo
       : userRole === "staff"
         ? [
             { id: "overview", label: "Utama", icon: LayoutDashboard },
+            { id: "organizers", label: "Penganjur", icon: Briefcase }, // New
             { id: "tenants", label: "Pendaftaran", icon: Users },
             { id: "accounting", label: "Kewangan", icon: Receipt },
+            { id: "settings", label: "Tetapan", icon: Settings },
+          ]
+      : userRole === "organizer" 
+        ? [
+            { id: "overview", label: "Utama", icon: LayoutDashboard },
+            { id: "locations", label: "Lokasi Saya", icon: MapPin },
+            { id: "tenants", label: "Penyewa", icon: Users },
+            { id: "permits", label: "Permit", icon: FileText },
             { id: "settings", label: "Tetapan", icon: Settings },
           ]
         : [
@@ -179,6 +191,7 @@ export function MobileNav({ activeModule, setActiveModule }: MobileNavProps) {
     userRole === "admin"
       ? [
           { id: "overview", label: "Utama", icon: LayoutDashboard },
+          { id: "organizers", label: "Penganjur", icon: Briefcase },
           { id: "tenants", label: "Peniaga & Sewa", icon: Users },
           { id: "accounting", label: "Akaun", icon: Receipt },
           { id: "locations", label: "Lokasi", icon: MapPin },
@@ -187,8 +200,17 @@ export function MobileNav({ activeModule, setActiveModule }: MobileNavProps) {
       : userRole === "staff"
         ? [
             { id: "overview", label: "Utama", icon: LayoutDashboard },
+            { id: "organizers", label: "Penganjur", icon: Briefcase },
             { id: "tenants", label: "Pendaftaran", icon: Users },
             { id: "accounting", label: "Kewangan", icon: Receipt },
+            { id: "settings", label: "Tetapan", icon: Settings },
+          ]
+      : userRole === "organizer"
+        ? [
+            { id: "overview", label: "Utama", icon: LayoutDashboard },
+            { id: "locations", label: "Lokasi Saya", icon: MapPin },
+            { id: "tenants", label: "Penyewa", icon: Users },
+            { id: "permits", label: "Permit", icon: FileText },
             { id: "settings", label: "Tetapan", icon: Settings },
           ]
         : [
