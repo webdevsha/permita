@@ -11,6 +11,7 @@ import { toast } from "sonner"
 import { Loader2 } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
+import { useSWRConfig } from "swr"
 
 export function LoginForm() {
   const [email, setEmail] = useState("")
@@ -19,6 +20,7 @@ export function LoginForm() {
   const [statusText, setStatusText] = useState("Log Masuk")
   const router = useRouter()
   const supabase = createClient()
+  const { mutate } = useSWRConfig()
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -44,9 +46,12 @@ export function LoginForm() {
         setStatusText("Mengalihkan...")
         toast.success("Berjaya log masuk!")
         
-        // Critical: Refresh router to sync server cookies before navigation
-        router.refresh() 
-        router.push("/dashboard")
+        // Cache management: Clear all SWR cache to prevent stale data from previous sessions
+        await mutate(() => true, undefined, { revalidate: false })
+        
+        // Force full page navigation to ensure server components and middleware 
+        // receive fresh cookies. This fixes the "stuck on processing" issue.
+        window.location.href = "/dashboard"
       }
     } catch (err: any) {
       console.error("Unexpected Login Error:", err)
